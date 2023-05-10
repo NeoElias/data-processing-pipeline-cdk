@@ -1,14 +1,13 @@
-# Welcome to your CDK TypeScript project
+# Automated Data Processing Pipeline Using AWS CDK
 
-This is a blank project for CDK development with TypeScript.
+## About
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+The pipeline automatically processes data coming from DynamoDB table and sends data into a Redshift table. The data should be mapped accordingly to the matching columns in the destination table. The project leverages infrastructure as code (IaC) using AWS CDK to provision the necessary pipeline infrastructure.
 
-## Useful commands
+## Architecture
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `cdk deploy`      deploy this stack to your default AWS account/region
-* `cdk diff`        compare deployed stack with current state
-* `cdk synth`       emits the synthesized CloudFormation template
+![Automated data processing pipeline architecture](./assets/data-pipeline-architecture.png)
+
+## Acknowledgements
+
+This project is based on an article that can be found [here](https://www.linkedin.com/pulse/aws-automated-data-processing-pipeline-dynamodb-stream-v-y-reddy/). I gratefully acknowledge the author for providing the project prompt.

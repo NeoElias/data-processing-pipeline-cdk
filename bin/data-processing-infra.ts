@@ -3,7 +3,6 @@ import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 import {
   DynamoDBStack,
-  IamRolesStack,
   LambdaFunctionStack,
   KinesisFirehoseStack,
 } from "../lib/index";
@@ -14,7 +13,6 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION,
 };
 
-const iamRolesStack = new IamRolesStack(app, "NeoIamRolesStack");
 new DynamoDBStack(app, "NeoDynamoDBStack");
 const kinesisFirehoseStack = new KinesisFirehoseStack(
   app,
@@ -26,6 +24,5 @@ const lambdaFunctionStack = new LambdaFunctionStack(
   app,
   "NeoLambdaFunctionStack"
 );
-lambdaFunctionStack.addDependency(iamRolesStack);
-kinesisFirehoseStack.addDependency(iamRolesStack);
+
 kinesisFirehoseStack.addDependency(lambdaFunctionStack);

@@ -1,6 +1,11 @@
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Duration, Stack, StackProps } from "aws-cdk-lib";
-import { Role } from "aws-cdk-lib/aws-iam";
+import {
+  Effect,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam";
 import { Runtime, StartingPosition } from "aws-cdk-lib/aws-lambda";
 import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
@@ -14,22 +19,48 @@ export class LambdaFunctionStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const dataProcessingLambdaArn =
-      StringParameter.fromStringParameterAttributes(
-        this,
-        "dataProcessingLambdaRoleArn",
-        {
-          parameterName: "/iamrole/lambda/dataprocessing/arn",
-        }
-      ).stringValue;
+    const dataProcessingLambdaPermissions = new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "firehose:PutRecord",
+        "ssm:GetParameter",
+      ],
+      resources: ["*"],
+    });
 
-    const redshiftLambdaArn = StringParameter.fromStringParameterAttributes(
+    const redshiftLambdaPermissions = new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: [
+        "ssm:GetParameter",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "lambda:DeleteFunction",
+      ],
+      resources: ["*"],
+    });
+
+    const dataProcessingLambdaRole = new Role(
       this,
-      "redshiftLambdaRoleArn",
+      "DataProcessingLambdaRole",
       {
-        parameterName: "/iamrole/lambda/redshift/arn",
+        roleName: "AWSLambdaExecutionRole",
+        assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+        description: "IAM role for data processing lambda function",
       }
-    ).stringValue;
+    );
+    dataProcessingLambdaRole.addToPolicy(dataProcessingLambdaPermissions);
+
+    const redshiftLambdaRole = new Role(this, "RedshiftLambdaRole", {
+      roleName: "AWSLambdaExecutionRoleRedshift",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      description: "IAM role for Redshift table creation lambda function",
+    });
+
+    redshiftLambdaRole.addToPolicy(redshiftLambdaPermissions);
 
     const dynamoTableStreamArn = StringParameter.fromStringParameterAttributes(
       this,
@@ -47,14 +78,6 @@ export class LambdaFunctionStack extends Stack {
       }
     ).stringValue;
 
-    // const clusterId = StringParameter.fromStringParameterAttributes(
-    //   this,
-    //   "ClusterIdParameter",
-    //   {
-    //     parameterName: "/redshift/cluster/identifier",
-    //   }
-    // ).stringValue;
-
     const dataProcessingLambda = new PythonFunction(
       this,
       "DataProcessingLambda",
@@ -64,11 +87,7 @@ export class LambdaFunctionStack extends Stack {
         index: "main.py",
         handler: "lambda_handler",
         timeout: Duration.minutes(1),
-        role: Role.fromRoleArn(
-          this,
-          "DataProcessingLambdaRole",
-          dataProcessingLambdaArn
-        ),
+        role: dataProcessingLambdaRole,
       }
     );
 
@@ -81,11 +100,7 @@ export class LambdaFunctionStack extends Stack {
         index: "main.py",
         handler: "lambda_handler",
         timeout: Duration.minutes(1),
-        role: Role.fromRoleArn(
-          this,
-          "RedshiftTableLambdaRole",
-          redshiftLambdaArn
-        ),
+        role: redshiftLambdaRole,
       }
     );
     const table = Table.fromTableAttributes(this, "Table", {

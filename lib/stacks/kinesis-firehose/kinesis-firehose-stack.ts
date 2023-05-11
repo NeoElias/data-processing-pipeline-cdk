@@ -10,6 +10,12 @@ import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { CfnCustomResource } from "aws-cdk-lib/aws-cloudformation";
 import { Rule } from "aws-cdk-lib/aws-events";
 import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
+import {
+  Effect,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam";
 
 export class KinesisFirehoseStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -20,14 +26,32 @@ export class KinesisFirehoseStack extends Stack {
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       autoDeleteObjects: true,
     });
-    const kinesisFirehoseRoleArn =
-      StringParameter.fromStringParameterAttributes(
-        this,
-        "KinesisFirehoseRoleArn",
-        {
-          parameterName: "/iamrole/kinesisfirehose/arn",
-        }
-      ).stringValue;
+
+    const kinesisFirehoseS3Permissions = new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: [
+        "s3:AbortMultipartUpload",
+        "s3:GetBucketLocation",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:ListBucketMultipartUploads",
+        "s3:PutObject",
+        "lambda:InvokeFunction",
+        "lambda:GetFunctionConfiguration",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+      ],
+      resources: ["*"],
+    });
+
+    const kinesisFirehoseRole = new Role(this, "KinesisFirehoseRole", {
+      roleName: "AWSKinesisFirehoseExecutionRole",
+      assumedBy: new ServicePrincipal("firehose.amazonaws.com"),
+      description: "IAM role for kinesis firehose",
+    });
+
+    kinesisFirehoseRole.addToPolicy(kinesisFirehoseS3Permissions);
 
     const cluster = new redshift.CfnCluster(this, "Cluster", {
       clusterType: "single-node",
@@ -54,7 +78,7 @@ export class KinesisFirehoseStack extends Stack {
             dataTableColumns: "id,firstname,lastname,age",
           },
           password: cluster.masterUserPassword,
-          roleArn: kinesisFirehoseRoleArn,
+          roleArn: kinesisFirehoseRole.roleArn,
           cloudWatchLoggingOptions: {
             enabled: true,
             logGroupName: "delivery-stream-log-group",
@@ -64,7 +88,7 @@ export class KinesisFirehoseStack extends Stack {
           username: cluster.masterUsername,
           s3Configuration: {
             bucketArn: streamTestBucket.bucketArn,
-            roleArn: kinesisFirehoseRoleArn,
+            roleArn: kinesisFirehoseRole.roleArn,
             cloudWatchLoggingOptions: {
               enabled: true,
               logGroupName: "s3-log-group",
